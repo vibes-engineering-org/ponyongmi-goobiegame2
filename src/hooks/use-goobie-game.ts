@@ -37,11 +37,13 @@ export function useGoobieGame() {
 
   const [hasPlayedToday, setHasPlayedToday] = useState(false);
   const [hasPaidForGame, setHasPaidForGame] = useState(false);
+  const [isFreeMode, setIsFreeMode] = useState(false);
 
   useEffect(() => {
     const today = new Date().toDateString();
     const lastPlayed = localStorage.getItem("goobie-last-played");
     const lastPaid = localStorage.getItem("goobie-last-paid");
+    const freeMode = localStorage.getItem("goobie-free-mode");
     
     if (lastPlayed === today) {
       setHasPlayedToday(true);
@@ -49,6 +51,10 @@ export function useGoobieGame() {
     
     if (lastPaid === today) {
       setHasPaidForGame(true);
+    }
+
+    if (freeMode === "true") {
+      setIsFreeMode(true);
     }
   }, []);
 
@@ -130,14 +136,18 @@ export function useGoobieGame() {
     
     if (guess.toUpperCase() === gameState.word) {
       newStatus = "won";
-      const today = new Date().toDateString();
-      localStorage.setItem("goobie-last-played", today);
-      setHasPlayedToday(true);
+      if (!isFreeMode) {
+        const today = new Date().toDateString();
+        localStorage.setItem("goobie-last-played", today);
+        setHasPlayedToday(true);
+      }
     } else if (newGuesses.length >= gameState.maxGuesses) {
       newStatus = "lost";
-      const today = new Date().toDateString();
-      localStorage.setItem("goobie-last-played", today);
-      setHasPlayedToday(true);
+      if (!isFreeMode) {
+        const today = new Date().toDateString();
+        localStorage.setItem("goobie-last-played", today);
+        setHasPlayedToday(true);
+      }
     }
 
     setGameState(prev => ({
@@ -150,7 +160,7 @@ export function useGoobieGame() {
     }));
 
     return true;
-  }, [gameState, updateLetterStatuses]);
+  }, [gameState, updateLetterStatuses, isFreeMode]);
 
   const updateCurrentGuess = useCallback((guess: string) => {
     if (guess.length <= 5) {
@@ -179,16 +189,39 @@ export function useGoobieGame() {
     setHasPaidForGame(false);
   }, []);
 
+  const toggleFreeMode = useCallback(() => {
+    const newFreeMode = !isFreeMode;
+    setIsFreeMode(newFreeMode);
+    localStorage.setItem("goobie-free-mode", newFreeMode.toString());
+  }, [isFreeMode]);
+
+  const resetGame = useCallback(() => {
+    localStorage.removeItem("goobie-last-played");
+    setHasPlayedToday(false);
+    setGameState({
+      word: "",
+      guesses: [],
+      currentGuess: "",
+      gameStatus: "notStarted",
+      maxGuesses: 6,
+      currentRow: 0,
+      letterStatuses: {}
+    });
+  }, []);
+
   return {
     gameState,
     hasPlayedToday,
     hasPaidForGame,
+    isFreeMode,
     startNewGame,
     makeGuess,
     updateCurrentGuess,
     deleteLetter,
     getLetterStates,
     markGameAsPaid,
-    resetPayment
+    resetPayment,
+    toggleFreeMode,
+    resetGame
   };
 }

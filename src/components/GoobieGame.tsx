@@ -7,6 +7,7 @@ import { Input } from "~/components/ui/input";
 import { DaimoPayTransferButton } from "~/components/daimo-pay-transfer-button";
 import { useGoobieGame, type LetterState } from "~/hooks/use-goobie-game";
 import { useMiniAppSdk } from "~/hooks/use-miniapp-sdk";
+import MusicPlayer from "~/components/MusicPlayer";
 
 interface GameBoardProps {
   guesses: string[];
@@ -121,13 +122,16 @@ export default function GoobieGame() {
     gameState,
     hasPlayedToday,
     hasPaidForGame,
+    isFreeMode,
     startNewGame,
     makeGuess,
     updateCurrentGuess,
     deleteLetter,
     getLetterStates,
     markGameAsPaid,
-    resetPayment
+    resetPayment,
+    toggleFreeMode,
+    resetGame
   } = useGoobieGame();
 
   const { context } = useMiniAppSdk();
@@ -160,24 +164,45 @@ export default function GoobieGame() {
     markGameAsPaid();
   };
 
-  const canPlayGame = hasPaidForGame && !hasPlayedToday;
-  const needsPayment = !hasPaidForGame;
-  const gameFinished = hasPlayedToday;
+  const canPlayGame = isFreeMode || (hasPaidForGame && !hasPlayedToday);
+  const needsPayment = !isFreeMode && !hasPaidForGame;
+  const gameFinished = !isFreeMode && hasPlayedToday;
 
   return (
     <div className="w-full max-w-md mx-auto space-y-6">
-      <div className="text-center space-y-2">
+      <div className="text-center space-y-4">
         <h1 className="text-3xl font-bold">Goobie</h1>
         <p className="text-muted-foreground">
           Guess the 5-letter word in 6 tries
         </p>
+        
+        <div className="flex items-center justify-center gap-4">
+          <Button
+            onClick={toggleFreeMode}
+            variant={isFreeMode ? "default" : "outline"}
+            size="sm"
+          >
+            {isFreeMode ? "Free Mode" : "Switch to Free Mode"}
+          </Button>
+          {isFreeMode && (
+            <Button
+              onClick={resetGame}
+              variant="outline"
+              size="sm"
+            >
+              New Game
+            </Button>
+          )}
+        </div>
+        
+        <MusicPlayer className="justify-center" />
       </div>
 
       {needsPayment && (
         <Card className="p-6 text-center space-y-4">
           <h2 className="text-xl font-semibold">Play Goobie</h2>
           <p className="text-muted-foreground">
-            Pay 1 USDC to play today&apos;s puzzle
+            Pay 1 USDC to play today&apos;s puzzle, or switch to free mode for unlimited games
           </p>
           <DaimoPayTransferButton
             text="Pay to Play (1 USDC)"
@@ -196,7 +221,7 @@ export default function GoobieGame() {
         </Card>
       )}
 
-      {hasPaidForGame && gameFinished && (
+      {gameFinished && (
         <Card className="p-6 text-center space-y-4">
           <h2 className="text-xl font-semibold">
             {gameState.gameStatus === "won" ? "You Won!" : 
@@ -208,7 +233,7 @@ export default function GoobieGame() {
             </p>
           )}
           <p className="text-muted-foreground">
-            Come back tomorrow for a new puzzle!
+            {isFreeMode ? "Try another word!" : "Come back tomorrow for a new puzzle!"}
           </p>
           <div className="space-y-2">
             <p className="text-sm">Your result:</p>
@@ -229,6 +254,11 @@ export default function GoobieGame() {
               ))}
             </div>
           </div>
+          {isFreeMode && (
+            <Button onClick={resetGame} className="mt-4">
+              Play Again
+            </Button>
+          )}
         </Card>
       )}
 
@@ -290,8 +320,13 @@ export default function GoobieGame() {
                 <p>The word was: <span className="font-bold">{gameState.word}</span></p>
               )}
               <p className="text-muted-foreground">
-                Come back tomorrow for a new puzzle!
+                {isFreeMode ? "Try another word!" : "Come back tomorrow for a new puzzle!"}
               </p>
+              {isFreeMode && (
+                <Button onClick={resetGame} className="mt-4">
+                  Play Again
+                </Button>
+              )}
             </Card>
           )}
         </>
