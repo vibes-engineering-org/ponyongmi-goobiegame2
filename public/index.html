@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Goobie Man Game</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        /* Prevent scrolling and default touch behaviors on mobile */
+        html, body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            touch-action: none;
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+        
+        body {
+            width: 100vw;
+            background-color: #222;
+            font-family: 'Press Start 2P', cursive;
+            overflow: hidden; /* Prevent scrollbars during scaling */
+            position: relative; /* For absolute positioning of children */
+        }
+        
+        /* Debug indicator for pause area - normally invisible */
+        #pauseArea {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 50px;
+            height: 50px;
+            background-color: rgba(0, 0, 0, 0);
+            z-index: 10;
+            pointer-events: none;
+        }
+        
+        /* Additional mobile-specific styles */
+        @media (max-width: 768px) {
+            #gameContainer {
+                border-width: 1px; /* Thinner border on mobile */
+            }
+        }
+        
+        #gameContainer {
+            position: absolute; /* Positioning controlled by JS */
+            border: 2px solid #05DB4A;
+            width: 800px;
+            height: 600px;
+            box-sizing: content-box;
+            transform-origin: top left; /* Scale from the top left */
+            transition: transform 0.2s ease, left 0.2s ease, top 0.2s ease; /* Smooth transitions */
+        }
+        
+        #branding {
+            text-align: center;
+            margin-top: 15px;
+            color: #05DB4A;
+            font-size: 18px;
+            font-weight: bold;
+            width: 800px;
+            position: absolute;
+            left: 0;
+            bottom: -40px;
+            z-index: 1; /* Ensure it's below other elements */
+            pointer-events: none; /* Prevent it from intercepting clicks */
+        }
+        
+        #brandingName {
+            color: white;
+        }
+        
+        #gameCanvas {
+            background-color: #000;
+            display: block;
+        }
+        
+        #scoreDisplay {
+            display: none; /* Hide the HTML element since we'll draw directly on canvas */
+        }
+        
+        #milestoneProgress {
+            display: none; /* Hide since we're drawing it on canvas now */
+        }
+        
+        #milestoneBar {
+            display: none; /* Hide since we're drawing it on canvas now */
+        }
+        
+        #livesDisplay {
+            display: none; /* Hide the HTML element since we'll draw directly on canvas */
+        }
+        
+        .lifeIcon {
+            width: 24px;
+            height: 24px;
+            margin-left: 5px;
+        }
+        
+        .lifeIcon.new {
+            animation: lifeFlash 1s ease-in-out 3;
+        }
+        
+        @keyframes lifeFlash {
+            0% { transform: scale(1); filter: brightness(1); }
+            50% { transform: scale(1.3); filter: brightness(1.5); }
+            100% { transform: scale(1); filter: brightness(1); }
+        }
+        
+        .lifeCounter.new {
+            animation: counterFlash 1s ease-in-out 3;
+        }
+        
+        @keyframes counterFlash {
+            0% { transform: scale(1); filter: brightness(1); }
+            50% { transform: scale(1.2); filter: brightness(1.5); }
+            100% { transform: scale(1); filter: brightness(1); }
+        }
+        
+        /* Special coin notification animation */
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+            20% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+            40% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(1.1); }
+        }
+        
+        .special-coin-notification {
+            position: absolute;
+            font-family: 'Press Start 2P', cursive;
+            text-align: center;
+            z-index: 1000;
+            pointer-events: none;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            animation: fadeInOut 2s ease-in-out;
+            font-size: 14px;
+        }
+        
+        /* Touch controls overlay */
+        #touchOverlay {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          pointer-events: none; /* Let clicks pass through by default */
+          z-index: 100;
+          display: none; /* Hidden by default, shown on mobile */
+        }
+
+        /* D-pad container - position it at the bottom of the game area, centered horizontally */
+        #touchDpad {
+          position: absolute;
+          bottom: -290px; /* Position it 200px lower than before (was -90px) */
+          left: 50%;
+          transform: translateX(-50%); /* Center horizontally */
+          width: 180px; /* Increased by 20% from 150px */
+          height: 180px; /* Increased by 20% from 150px */
+          pointer-events: auto; /* This area captures touches */
+          background-color: rgba(5, 219, 74, 0.15); /* Light background for the joystick area */
+          border-radius: 90px; /* Make it circular */
+          border: 2px solid rgba(5, 219, 74, 0.3);
+        }
+
+        /* D-pad buttons - hide the individual direction buttons for joystick style */
+        .dpad-button {
+          display: none; /* Hide the directional buttons for joystick mode */
+        }
+
+        /* Joystick handle */
+        #joystick-handle {
+          position: absolute;
+          width: 70px; /* Increased by 20% from ~58px */
+          height: 70px; /* Increased by 20% from ~58px */
+          background-color: rgba(5, 219, 74, 0.4);
+          border: 3px solid rgba(5, 219, 74, 0.7);
+          border-radius: 35px;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          box-shadow: 0 0 15px rgba(5, 219, 74, 0.5);
+          pointer-events: none; /* The container handles all touch events */
+          transition: all 0.1s ease; /* Smooth movement */
+        }
+
+        /* Inner circle for joystick handle */
+        #joystick-handle::after {
+          content: "";
+          position: absolute;
+          width: 30px;
+          height: 30px;
+          background-color: rgba(5, 219, 74, 0.8);
+          border-radius: 15px;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+        }
+
+        /* Pause button in top-right corner */
+        #touchPause {
+          position: absolute;
+          top: -80px; /* Position it above the canvas (was 20px) */
+          right: 20px;
+          width: 60px;
+          height: 60px;
+          border-radius: 30px;
+          background-color: rgba(5, 219, 74, 0.3);
+          border: 2px solid rgba(5, 219, 74, 0.5);
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          pointer-events: auto;
+        }
+
+        #touchPause::before,
+        #touchPause::after {
+          content: "";
+          position: absolute;
+          width: 8px;
+          height: 25px;
+          background-color: white;
+          border-radius: 4px;
+        }
+
+        #touchPause::before {
+          margin-right: 10px;
+        }
+
+        #touchPause::after {
+          margin-left: 10px;
+        }
+        
+        /* Sound toggle button */
+        #touchSound {
+          position: absolute;
+          top: -80px; /* Same height as pause button */
+          right: 100px; /* Position to the left of pause button */
+          width: 60px;
+          height: 60px;
+          border-radius: 30px;
+          background-color: rgba(5, 219, 74, 0.3);
+          border: 2px solid rgba(5, 219, 74, 0.5);
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          pointer-events: auto;
+        }
+
+        /* Sound icon - basic shape */
+        #touchSound::before {
+          content: "";
+          position: absolute;
+          width: 36px; /* Increased by another 50% from 24px to 36px */
+          height: 36px; /* Increased by another 50% from 24px to 36px */
+          background-color: white;
+          clip-path: polygon(0 30%, 30% 30%, 50% 10%, 50% 90%, 30% 70%, 0 70%);
+          /* Center the icon in the button with a 5px right shift */
+          left: calc(50% + 5px);
+          top: 50%;
+          transform: translate(-50%, -50%);
+        }
+
+        /* Sound waves removed - no ::after for sound-on class */
+        
+        /* Mute indicator (X) - only visible when sound is off */
+        #touchSound.sound-off::after {
+          content: "";
+          position: absolute;
+          width: 40px; /* Increased to match the larger speaker icon */
+          height: 4px;
+          background-color: #FF6347; /* Tomato color for muted state */
+          transform: rotate(45deg);
+          /* Center the X in the button with same 5px shift as the icon */
+          left: calc(50% + 5px);
+          top: 50%;
+          margin-left: -20px; /* Half of width to help with centering */
+        }
+
+        #touchSound.sound-off::before {
+          clip-path: polygon(0 30%, 30% 30%, 50% 10%, 50% 90%, 30% 70%, 0 70%);
+        }
+
+        /* Additional X line for mute icon */
+        #touchSound.sound-off span {
+          position: absolute;
+          width: 40px; /* Increased to match the larger speaker icon */
+          height: 4px;
+          background-color: #FF6347;
+          transform: rotate(-45deg);
+          /* Center the X in the button with same 5px shift as the icon */
+          left: calc(50% + 5px);
+          top: 50%;
+          margin-left: -20px; /* Half of width to help with centering */
+        }
+        
+        #startScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 800px;
+            height: 600px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
+            align-items: center;
+            background-color: #000;
+            padding: 5px 0;
+            box-sizing: border-box;
+            z-index: 5;
+        }
+        
+        #startScreen h1 {
+            color: #05DB4A;
+            margin-top: 10px;
+            margin-bottom: 10px;
+            font-size: 38px;
+            text-align: center;
+            line-height: 1.2;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        
+        .title-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 5px;
+            margin-bottom: 0px;
+        }
+        
+        .player-icon {
+            width: 64px;
+            height: 64px;
+            margin: 0 15px;
+            position: relative;
+        }
+        
+        .player-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        
+        .player-icon::after {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background-color: black;
+            color: white;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        
+        .instructions-section {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        
+        .instructions-section h2 {
+            color: white;
+            font-size: 22px;
+            margin-bottom: 5px;
+        }
+        
+        .instructions-section p {
+            color: white;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+        
+        .controls-info {
+            color: white;
+            font-size: 16px;
+            margin-top: 5px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        
+        .controls-info p {
+            margin: 5px 0;
+            color: white;
+            font-size: 16px;
+        }
+        
+        .enemy-showcase {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 20px;
+        }
+        
+        .enemy-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .enemy-item img {
+            width: 50px;
+            height: 50px;
+            margin-bottom: 10px;
+            image-rendering: pixelated;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: crisp-edges;
+            background-color: #000;
+        }
+        
+        .enemy-item span {
+            color: white;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+        
+        .coin-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .coin-section p {
+            color: white;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+        
+        .coin-images {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+        }
+        
+        .coin-images img {
+            width: 32px;
+            height: 32px;
+            image-rendering: pixelated;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: crisp-edges;
+        }
+        
+        #startButton {
+            padding: 15px 30px;
+            font-size: 16px;
+            background-color: #05DB4A;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-family: 'Press Start 2P', cursive;
+            text-transform: none;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        #leaderboardButton {
+            padding: 15px 30px;
+            font-size: 16px;
+            background-color: #2458f6;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-family: 'Press Start 2P', cursive;
+            text-transform: none;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .button-container {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 10px;
+            margin-bottom: 10px;
+        }
+        
+        #gameOverScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(0, 0, 0, 0.7);
+        }
+        
+        #gameOverScreen h1 {
+            color: white;
+            margin-bottom: 20px;
+            font-size: 72px;
+            text-align: center;
+        }
+        
+        #finalScore {
+            color: #05DB4A;
+            font-size: 18px;
+            margin-bottom: 30px;
+        }
+        
+        #restartButton {
+            padding: 10px 20px;
+            font-size: 14px;
+            background-color: #05DB4A;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-family: 'Press Start 2P', cursive;
+            text-transform: none;
+            margin-bottom: 10px;
+        }
+        
+        #highScoreScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(0, 0, 0, 0.8);
+            z-index: 6;
+        }
+        
+        #highScoreScreen h1 {
+            color: #05DB4A;
+            margin-bottom: 20px;
+            font-size: 36px;
+            text-align: center;
+        }
+        
+        .score-value {
+            color: white;
+            font-size: 24px;
+            margin-bottom: 30px;
+        }
+        
+        .name-input-container {
+            margin-bottom: 30px;
+            width: 80%;
+            max-width: 400px;
+        }
+        
+        .name-input {
+            width: 100%;
+            padding: 10px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 16px;
+            background-color: #111;
+            border: 2px solid #05DB4A;
+            color: white;
+            text-align: center;
+        }
+        
+        .name-input:focus {
+            outline: none;
+            box-shadow: 0 0 10px rgba(5, 219, 74, 0.5);
+        }
+        
+        .name-input-error {
+            color: #ff4d4d;
+            font-size: 12px;
+            margin-top: 10px;
+            height: 15px;
+            text-align: center;
+        }
+        
+        #submitScoreButton {
+            padding: 10px 20px;
+            font-size: 14px;
+            background-color: #05DB4A;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-family: 'Press Start 2P', cursive;
+        }
+        
+        #loadingScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(0, 0, 0, 0.8);
+            z-index: 10;
+        }
+        
+        #loadingScreen h2 {
+            color: white;
+            margin-bottom: 20px;
+            font-size: 18px;
+            text-align: center;
+        }
+        
+        #loadingBar {
+            width: 80%;
+            height: 20px;
+            background-color: #333;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        #loadingProgress {
+            width: 0%;
+            height: 100%;
+            background-color: #4CAF50;
+            transition: width 0.3s;
+        }
+        
+        p {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+        
+        #continueScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(0, 0, 0, 0.7);
+        }
+        
+        #continueScreen h1 {
+            color: white;
+            margin-bottom: 20px;
+            font-size: 24px;
+            text-align: center;
+        }
+        
+        #livesRemaining {
+            color: #05DB4A;
+            font-size: 18px;
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+        }
+        
+        #continueButton {
+            padding: 10px 20px;
+            font-size: 14px;
+            background-color: #05DB4A;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-family: 'Press Start 2P', cursive;
+            text-transform: none;
+            margin-bottom: 10px;
+        }
+        
+        .notification {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #05DB4A;
+            font-size: 32px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            animation: notification 2s ease-out forwards;
+            z-index: 100;
+            font-family: 'Press Start 2P', cursive;
+        }
+        
+        @keyframes notification {
+            0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+            20% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+            30% { transform: translate(-50%, -50%) scale(1); }
+            80% { opacity: 1; }
+            100% { opacity: 0; transform: translate(-50%, -130%) scale(1); }
+        }
+        
+        /* Special styling for pepe coin notification */
+        .pepe-notification {
+            color: white;
+            font-size: 18px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            font-weight: bold;
+            font-family: 'Press Start 2P', cursive;
+            animation: notification 2s ease-out forwards;
+            z-index: 100;
+            position: absolute;
+        }
+        
+        #leaderboardScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 800px;
+            height: 600px;
+            display: none;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: center;
+            background-color: #000000;
+            padding-top: 30px;
+            overflow: hidden;
+            z-index: 10; /* Ensure it's above other elements */
+            box-sizing: border-box; /* Ensure padding is included in the height */
+        }
+        
+        #leaderboardScreen h1 {
+            color: #05DB4A;
+            margin-bottom: 30px;
+            font-size: 32px;
+            text-align: center;
+        }
+        
+        .loading-indicator {
+            color: #05DB4A;
+            margin: 20px 0;
+            font-size: 14px;
+            animation: blink 1s infinite;
+        }
+        
+        @keyframes blink {
+            0% { opacity: 0.5; }
+            50% { opacity: 1; }
+            100% { opacity: 0.5; }
+        }
+        
+        .leaderboard-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+            color: white;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        .leaderboard-table-container {
+            max-height: 400px; /* Fixed height for scrolling */
+            overflow-y: auto; /* Enable vertical scrolling */
+            width: 80%;
+            margin: 0 auto;
+            margin-bottom: 20px;
+            border: 1px solid rgba(5, 219, 74, 0.3);
+            border-radius: 4px;
+            scrollbar-width: thin;
+            scrollbar-color: #05DB4A #222;
+            display: block;  /* Changed from flex to block */
+        }
+        
+        /* Scrollbar styling for WebKit browsers */
+        .leaderboard-table-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .leaderboard-table-container::-webkit-scrollbar-track {
+            background: #222;
+            border-radius: 4px;
+        }
+        
+        .leaderboard-table-container::-webkit-scrollbar-thumb {
+            background-color: #05DB4A;
+            border-radius: 4px;
+        }
+        
+        /* Position indicator */
+        .leaderboard-position-indicator {
+            color: #05DB4A;
+            font-size: 12px;
+            margin-bottom: 10px;
+        }
+        
+        /* Make sure table doesn't overflow on small screens */
+        @media (max-height: 600px) {
+            .leaderboard-table-container {
+                max-height: 300px;
+            }
+            
+            #leaderboardScreen h1 {
+                margin-bottom: 15px;
+                font-size: 24px;
+            }
+        }
+        
+        .leaderboard-table th, 
+        .leaderboard-table td {
+            padding: 10px;
+            text-align: center;
+            font-size: 12px;
+        }
+        
+        .leaderboard-table th {
+            color: #05DB4A;
+            border-bottom: 2px solid #05DB4A;
+        }
+        
+        .leaderboard-table tr:nth-child(even) {
+            background-color: rgba(5, 219, 74, 0.1);
+        }
+        
+        .leaderboard-table .highlight {
+            background-color: rgba(5, 219, 74, 0.3);
+        }
+        
+        .leaderboard-table tr {
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+        
+        .game-button {
+            padding: 15px 30px;
+            font-size: 16px;
+            background-color: #05DB4A;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-family: 'Press Start 2P', cursive;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        #leaderboardButton {
+            background-color: #2458f6;
+        }
+    </style>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="firebase.js"></script>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        
+        <!-- Touch controls overlay -->
+        <div id="touchOverlay">
+          <div id="touchDpad">
+            <div id="joystick-handle"></div>
+            <div id="dpad-up" class="dpad-button"><div class="dpad-arrow"></div></div>
+            <div id="dpad-right" class="dpad-button"><div class="dpad-arrow"></div></div>
+            <div id="dpad-down" class="dpad-button"><div class="dpad-arrow"></div></div>
+            <div id="dpad-left" class="dpad-button"><div class="dpad-arrow"></div></div>
+            <div id="dpad-center" class="dpad-button"></div>
+          </div>
+          <div id="touchPause"></div>
+          <div id="touchSound" class="sound-on"><span></span></div>
+        </div>
+        
+        <div id="loadingScreen">
+            <h2>Loading Game Assets...</h2>
+            <div id="loadingBar">
+                <div id="loadingProgress"></div>
+            </div>
+        </div>
+        
+        <div id="startScreen">
+            <div class="title-container">
+                <div class="player-icon">
+                    <img src="images/player_left_3.png" alt="Player Left" data-player="left">
+                </div>
+                <h1>GOOBIE'S<br>ADVENTURE</h1>
+                <div class="player-icon">
+                    <img src="images/player_right_3.png" alt="Player Right" data-player="right">
+                </div>
+            </div>
+            
+            <div class="instructions-section">
+                <h2>INSTRUCTIONS:</h2>
+                <p>Avoid your pals.</p>
+            </div>
+            
+            <div class="enemy-showcase">
+                <div class="enemy-item">
+                    <img src="images/enemy-miggles-1.png" alt="Miggles" data-enemy="miggles">
+                    <span>MIGGLES</span>
+                </div>
+                <div class="enemy-item">
+                    <img src="images/enemy-bonk-1.png" alt="Bonk" data-enemy="bonk">
+                    <span>BONK</span>
+                </div>
+                <div class="enemy-item">
+                    <img src="images/enemy-doge-1.png" alt="Doge" data-enemy="doge">
+                    <span>DOGE</span>
+                </div>
+                <div class="enemy-item">
+                    <img src="images/enemy-broccoli-1.png" alt="Broccoli" data-enemy="broccoli">
+                    <span>BROCCOLI</span>
+                </div>
+            </div>
+            
+            <div class="coin-section">
+                <p>Collect coins:</p>
+                <div class="coin-images">
+                    <img src="images/golden_coins_v1.8.png" alt="Coin">
+                    <img src="images/mystery_coin.png" alt="Mystery Coin">
+                </div>
+            </div>
+            
+            <div class="controls-info">
+                <p>Use arrow keys, WASD, or mobile joystick.</p>
+                <p>Press P to pause.</p>
+            </div>
+            
+            <div class="button-container">
+                <button id="startButton" class="game-button">Start Game</button>
+                <button id="leaderboardButton" class="game-button">Leaderboard</button>
+            </div>
+            <p style="color: white; margin-top: -5px; font-size: 12px;">Press SPACEBAR or ENTER to start</p>
+        </div>
+        
+        <div id="continueScreen">
+            <h1>Liquidated!</h1>
+            <div id="livesRemaining">Lives: <img src="images/player_lives.png" class="lifeIcon"><img src="images/player_lives.png" class="lifeIcon"></div>
+            <button id="continueButton" class="game-button">CONTINUE</button>
+            <p style="color: white; margin-top: 15px; font-size: 12px;">Press SPACEBAR or ENTER to continue</p>
+        </div>
+        
+        <div id="highScoreScreen">
+            <h1>NEW HIGH SCORE!</h1>
+            <div id="highScoreValue" class="score-value">Score: 0</div>
+            <div class="name-input-container">
+                <label for="playerNameInput" style="color: white; display: block; margin-bottom: 10px; text-align: center;">Enter your name:</label>
+                <input type="text" id="playerNameInput" maxlength="15" class="name-input" placeholder="MAX 15 CHARS">
+                <div class="name-input-error" id="nameInputError"></div>
+            </div>
+            <button id="submitScoreButton" class="game-button">Submit Score</button>
+            <p style="color: white; margin-top: 15px; font-size: 12px;">Press ENTER to submit</p>
+        </div>
+        
+        <div id="gameOverScreen">
+            <h1>Game Over!</h1>
+            <div id="finalScore">Score: 0</div>
+            <button id="restartButton" class="game-button" style="width: 240px; font-size: 16px;">PLAY AGAIN</button>
+            <button id="homeButton" class="game-button" style="background-color: #2458f6; margin-top: 10px; width: 240px; font-size: 16px;">HOME&nbsp;SCREEN</button>
+            <p style="color: white; margin-top: 15px; font-size: 12px;">Press SPACEBAR or ENTER to restart</p>
+        </div>
+        
+        <div id="leaderboardScreen">
+            <h1>TOP 100 SCORES</h1>
+            <div id="leaderboardLoading" class="loading-indicator">Loading scores...</div>
+            <div id="leaderboardPositionIndicator" class="leaderboard-position-indicator"></div>
+            <div class="leaderboard-table-container">
+                <table id="leaderboardTable" class="leaderboard-table">
+                    <thead>
+                        <tr>
+                            <th>RANK</th>
+                            <th>NAME</th>
+                            <th>SCORE</th>
+                            <th>DATE</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leaderboardBody">
+                        <!-- Leaderboard data will be inserted here -->
+                    </tbody>
+                </table>
+            </div>
+            <button id="backButton" class="game-button">Back</button>
+            <p style="color: white; margin-top: 15px; font-size: 12px;">Press ESC to go back</p>
+        </div>
+        
+        <div id="branding" style="color: white;">
+            <span style="color: white;">Glue.net</span> <span style="color: #05DB4A;">| The Blockchain Ecosystem</span>
+        </div>
+    </div>
+
+    <div id="pauseArea" title="Tap here to pause"></div>
+
+    <script src="imageProcessor.js"></script>
+    <script src="images.js"></script>
+    <script src="game.js"></script>
+</body>
+</html> 
